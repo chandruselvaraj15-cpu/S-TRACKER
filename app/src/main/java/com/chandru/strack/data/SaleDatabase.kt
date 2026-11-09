@@ -35,3 +35,11 @@ interface SaleDao {
 abstract class STrackDatabase : RoomDatabase() {
     abstract fun saleDao(): SaleDao
 }
+
+class SaleRepository(private val saleDao: SaleDao) {
+    fun observeSales(): Flow<List<SaleEntity>> = saleDao.observeAll()
+
+    suspend fun addSale(sale: SaleEntity): Long = saleDao.insert(sale)
+
+    suspend fun deleteSale(id: Long) = saleDao.deleteById(id)
+}
