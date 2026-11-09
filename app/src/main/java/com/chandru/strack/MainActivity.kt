@@ -3,6 +3,7 @@ package com.chandru.strack
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -93,11 +94,8 @@ class MainActivity : ComponentActivity() {
             .fallbackToDestructiveMigration()
             .build()
 
-        val scope = rememberCoroutineScope()
-        scope.launch {
-            if (BuildConfig.DEBUG) {
-                seedDebugSampleData(database)
-            }
+        if (BuildConfig.DEBUG) {
+            lifecycleScope.launch { seedDebugSampleData(database) }
         }
 
         setContent { STrackApp(database) }
@@ -258,10 +256,7 @@ private fun HomeScreen(sales: List<SaleEntity>, modifier: Modifier, onAdd: () ->
             if (sales.isEmpty()) EmptySales(onAdd)
         }
 
-        items(sales.take(4), key = { it.id }) { sale ->
-            SaleRow(sale)
-        }
-
+        items(sales.take(4), key = { it.id }) { sale -> SaleRow(sale) }
         item { Spacer(Modifier.height(18.dp)) }
     }
 }
@@ -313,24 +308,19 @@ private fun EmptySales(onAdd: () -> Unit) {
 private fun SaleRow(sale: SaleEntity, onDelete: (() -> Unit)? = null) {
     Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF223A3A)),
-                contentAlignment = Alignment.Center
-            ) {
+            Box(Modifier.size(42.dp).clip(CircleShape).background(Color(0xFF223A3A)), contentAlignment = Alignment.Center) {
                 Text(sale.brand.take(1).uppercase(), color = Mint, fontWeight = FontWeight.Bold)
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(sale.model, fontWeight = FontWeight.SemiBold)
                 Text(
-                    text = "${sale.brand} · ${SimpleDateFormat("dd MMM, h:mm a", Locale.getDefault()).format(Date(sale.timestampMillis))}",
+                    "${sale.brand} · ${SimpleDateFormat("dd MMM, h:mm a", Locale.getDefault()).format(Date(sale.timestampMillis))}",
                     color = Muted,
                     fontSize = 12.sp
                 )
             }
             Text("${sale.quantity} unit${if (sale.quantity == 1) "" else "s"}", color = Mint, fontWeight = FontWeight.SemiBold)
-            if (onDelete != null) {
-                IconButton(onClick = onDelete) { Text("×", color = Muted, fontSize = 22.sp) }
-            }
+            if (onDelete != null) IconButton(onClick = onDelete) { Text("×", color = Muted, fontSize = 22.sp) }
         }
     }
 }
@@ -338,27 +328,21 @@ private fun SaleRow(sale: SaleEntity, onDelete: (() -> Unit)? = null) {
 @Composable
 private fun SalesScreen(sales: List<SaleEntity>, modifier: Modifier, onDelete: (Long) -> Unit) {
     var deleting by remember { mutableStateOf<SaleEntity?>(null) }
-
     Column(modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Text("Sales history", Modifier.padding(top = 22.dp), fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("Your sales are saved on this device", color = Muted)
         Spacer(Modifier.height(14.dp))
         if (sales.isEmpty()) EmptySales { }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            items(sales, key = { it.id }) { sale ->
-                SaleRow(sale) { deleting = sale }
-            }
+            items(sales, key = { it.id }) { sale -> SaleRow(sale) { deleting = sale } }
         }
     }
-
     deleting?.let { sale ->
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete this sale?") },
             text = { Text("${sale.brand} ${sale.model} · ${sale.quantity} unit(s)") },
-            confirmButton = {
-                TextButton(onClick = { onDelete(sale.id); deleting = null }) { Text("Delete") }
-            },
+            confirmButton = { TextButton(onClick = { onDelete(sale.id); deleting = null }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } }
         )
     }
@@ -369,9 +353,7 @@ private fun BrandsScreen(sales: List<SaleEntity>, modifier: Modifier) {
     val total = sales.sumOf { it.quantity }
     val brands = sales.groupBy { it.brand.trim().ifBlank { "Unknown" } }
         .mapValues { (_, entries) -> entries.sumOf { it.quantity } }
-        .entries
-        .sortedByDescending { it.value }
-
+        .entries.sortedByDescending { it.value }
     Column(modifier.fillMaxSize().padding(20.dp)) {
         Text("Brand performance", fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("All recorded sales · market share", color = Muted)
@@ -388,12 +370,7 @@ private fun BrandsScreen(sales: List<SaleEntity>, modifier: Modifier) {
                         }
                         Spacer(Modifier.height(8.dp))
                         ShareBar(share.toFloat())
-                        Text(
-                            "$units units · #${brands.indexOfFirst { it.key == brand } + 1} by sales",
-                            color = Muted,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(top = 7.dp)
-                        )
+                        Text("$units units · #${brands.indexOfFirst { it.key == brand } + 1} by sales", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 7.dp))
                     }
                 }
             }
@@ -406,23 +383,18 @@ private fun AnalyticsScreen(sales: List<SaleEntity>, modifier: Modifier) {
     val today = LocalDate.now()
     val zone = ZoneId.systemDefault()
     val monthSales = sales.filter {
-        val localDate = Instant.ofEpochMilli(it.timestampMillis).atZone(zone).toLocalDate()
-        localDate.year == today.year && localDate.month == today.month
+        val date = Instant.ofEpochMilli(it.timestampMillis).atZone(zone).toLocalDate()
+        date.year == today.year && date.month == today.month
     }
     val models = monthSales.groupBy { "${it.brand} ${it.model}" }
         .mapValues { (_, entries) -> entries.sumOf { it.quantity } }
-        .entries
-        .sortedByDescending { it.value }
-        .take(8)
-
+        .entries.sortedByDescending { it.value }.take(8)
     LazyColumn(modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Analytics", fontSize = 26.sp, fontWeight = FontWeight.Bold)
             Text("Month-to-date model performance", color = Muted)
         }
-        item {
-            MetricSummaryCard("MONTH TO DATE", monthSales.sumOf { it.quantity }.toString(), "units sold", Modifier.fillMaxWidth())
-        }
+        item { MetricSummaryCard("MONTH TO DATE", monthSales.sumOf { it.quantity }.toString(), "units sold", Modifier.fillMaxWidth()) }
         item { Text("Top selling models", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         if (models.isEmpty()) item { EmptySales { } }
         items(models) { (model, count) ->
@@ -439,11 +411,7 @@ private fun AnalyticsScreen(sales: List<SaleEntity>, modifier: Modifier) {
 
 @Composable
 private fun NilaScreen(modifier: Modifier) {
-    Column(
-        modifier = modifier.fillMaxSize().padding(horizontal = 24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    Column(modifier.fillMaxSize().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         NilaAvatar(Modifier.size(150.dp))
         Spacer(Modifier.height(18.dp))
         Text("Meet Nila", fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -453,10 +421,7 @@ private fun NilaScreen(modifier: Modifier) {
             Column(Modifier.padding(18.dp)) {
                 Text("Anime-inspired, showroom-ready", fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    "Nila's AI service is not connected yet. We won't show pretend answers or unverified phone specifications. Your offline sales tracking works as usual.",
-                    color = Muted
-                )
+                Text("Nila's AI service is not connected yet. We won't show pretend answers or unverified phone specifications. Your offline sales tracking works as usual.", color = Muted)
             }
         }
     }
@@ -468,7 +433,6 @@ private fun NilaAvatar(modifier: Modifier = Modifier) {
         val cx = size.width / 2f
         val cy = size.height / 2f
         val s = size.minDimension
-
         drawCircle(Color(0xFF17212B), s * .36f, Offset(cx, cy + s * .04f))
         drawOval(Color(0xFF293E64), topLeft = Offset(cx - s * .30f, cy - s * .32f), size = Size(s * .60f, s * .71f))
         drawOval(Color(0xFF506FA8), topLeft = Offset(cx - s * .24f, cy - s * .27f), size = Size(s * .48f, s * .58f))
@@ -478,22 +442,8 @@ private fun NilaAvatar(modifier: Modifier = Modifier) {
         drawCircle(Color(0xFF24334D), s * .028f, Offset(cx + s * .085f, cy + s * .045f))
         drawCircle(Color.White.copy(alpha = .8f), s * .012f, Offset(cx - s * .092f, cy + s * .035f))
         drawCircle(Color.White.copy(alpha = .8f), s * .012f, Offset(cx + s * .078f, cy + s * .035f))
-        drawLine(
-            Color(0xFFE78D9B),
-            Offset(cx - s * .04f, cy + s * .17f),
-            Offset(cx + s * .04f, cy + s * .17f),
-            s * .012f,
-            cap = StrokeCap.Round
-        )
-        drawArc(
-            Mint.copy(alpha = .6f),
-            205f,
-            130f,
-            false,
-            topLeft = Offset(s * .11f, s * .11f),
-            size = Size(s * .78f, s * .78f),
-            style = Stroke(s * .012f)
-        )
+        drawLine(Color(0xFFE78D9B), Offset(cx - s * .04f, cy + s * .17f), Offset(cx + s * .04f, cy + s * .17f), s * .012f, cap = StrokeCap.Round)
+        drawArc(Mint.copy(alpha = .6f), 205f, 130f, false, topLeft = Offset(s * .11f, s * .11f), size = Size(s * .78f, s * .78f), style = Stroke(s * .012f))
     }
 }
 
@@ -504,7 +454,6 @@ private fun AddSaleDialog(onDismiss: () -> Unit, onSave: (String, String, Int) -
     var quantityText by remember { mutableStateOf("1") }
     val quantity = quantityText.toIntOrNull() ?: 0
     val brands = listOf("Samsung", "Vivo", "OPPO", "realme", "Redmi", "Xiaomi", "Lava", "TECNO", "Apple", "Nothing", "Google Pixel")
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add sale") },
@@ -513,11 +462,7 @@ private fun AddSaleDialog(onDismiss: () -> Unit, onSave: (String, String, Int) -
                 Text("Brand", color = Muted, fontSize = 12.sp)
                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(brands) { name ->
-                        androidx.compose.material3.FilterChip(
-                            selected = brand == name,
-                            onClick = { brand = name },
-                            label = { Text(name) }
-                        )
+                        androidx.compose.material3.FilterChip(selected = brand == name, onClick = { brand = name }, label = { Text(name) })
                     }
                 }
                 OutlinedTextField(value = brand, onValueChange = { brand = it }, label = { Text("Brand") }, singleLine = true)
@@ -535,9 +480,7 @@ private fun AddSaleDialog(onDismiss: () -> Unit, onSave: (String, String, Int) -
             Button(
                 onClick = { if (brand.isNotBlank() && model.isNotBlank() && quantity > 0) onSave(brand, model, quantity) },
                 enabled = brand.isNotBlank() && model.isNotBlank() && quantity > 0
-            ) {
-                Text("Save sale")
-            }
+            ) { Text("Save sale") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
